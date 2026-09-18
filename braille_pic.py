@@ -85,6 +85,11 @@ def parse_arguments() -> argparse.Namespace:
         default=1.0,
         help="color saturation multiplier; 1 preserves the source (default: 1)",
     )
+    parser.add_argument(
+        "--adaptive-colours",
+        action="store_true",
+        help="derive foreground and background colors separately for each Braille cell",
+    )
     arguments = parser.parse_args()
     if arguments.width < 1:
         parser.error("--width must be at least 1")
@@ -119,6 +124,11 @@ def average_color(pixels: Image.Image, left: int, top: int) -> tuple[int, int, i
             for channel, value in enumerate(pixels.getpixel((left + x, top + y))):
                 channels[channel] += value
     return tuple(value // 8 for value in channels)
+
+
+def average_colors(colors: list[tuple[int, int, int]]) -> tuple[int, int, int]:
+    """Return the mean RGB value of a non-empty color collection."""
+    return tuple(sum(color[channel] for color in colors) // len(colors) for channel in range(3))
 
 
 def relative_luminance(color: tuple[int, int, int]) -> float:
@@ -228,6 +238,7 @@ def render(
     contrast: float,
     background: tuple[int, int, int] | None,
     saturation: float,
+    adaptive_colours: bool,
 ) -> str:
     """Return the image as lines of Unicode Braille characters."""
     enhanced = ImageEnhance.Color(image).enhance(saturation)
@@ -238,6 +249,8 @@ def render(
         line: list[str] = []
         for left in range(0, pixels.width, 2):
             pattern = 0
+            lit_colors: list[tuple[int, int, int]] = []
+            unlit_colors: list[tuple[int, int, int]] = []
             for x in range(2):
                 for y in range(4):
                     is_dark = (
@@ -245,18 +258,34 @@ def render(
                         if dithered_dots is not None
                         else brightness(pixels.getpixel((left + x, top + y))) < threshold
                     )
-                    if is_dark != invert:
+                    is_lit = is_dark != invert
+                    pixel_color = pixels.getpixel((left + x, top + y))
+                    if is_lit:
                         pattern |= DOT_MASKS[x][y]
+                        lit_colors.append(pixel_color)
+                    else:
+                        unlit_colors.append(pixel_color)
             character = chr(BRAILLE_BASE + pattern)
             if color:
-                red, green, blue = average_color(pixels, left, top)
-                if background is not None:
-                    red, green, blue = ensure_contrast((red, green, blue), background)
-                line.append(f"\x1b[38;2;{red};{green};{blue}m{character}")
+                if adaptive_colours:
+                    fallback = average_color(pixels, left, top)
+                    foreground = average_colors(lit_colors) if lit_colors else fallback
+                    cell_background = average_colors(unlit_colors) if unlit_colors else fallback
+                    red, green, blue = ensure_contrast(foreground, cell_background)
+                    background_red, background_green, background_blue = cell_background
+                    line.append(
+                        f"\x1b[48;2;{background_red};{background_green};{background_blue}m"
+                        f"\x1b[38;2;{red};{green};{blue}m{character}"
+                    )
+                else:
+                    red, green, blue = average_color(pixels, left, top)
+                    if background is not None:
+                        red, green, blue = ensure_contrast((red, green, blue), background)
+                    line.append(f"\x1b[38;2;{red};{green};{blue}m{character}")
             else:
                 line.append(character)
         background_prefix = ""
-        if color and background is not None:
+        if color and background is not None and not adaptive_colours:
             red, green, blue = background
             background_prefix = f"\x1b[48;2;{red};{green};{blue}m"
         lines.append(background_prefix + "".join(line) + ("\x1b[0m" if color else ""))
@@ -283,6 +312,7 @@ def main() -> int:
                     arguments.contrast,
                     background,
                     arguments.saturation,
+                    arguments.adaptive_colours,
                 )
             )
     except (OSError, ValueError) as error:

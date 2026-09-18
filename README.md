@@ -27,6 +27,8 @@ Useful options:
 - `--background 96,96,96` applies a true-color terminal background; use `auto` to
   derive a neutral grey from the image's upper corners.
 - `--saturation 1.2` gently enriches color while preserving natural skin tones.
+- `--adaptive-colours` assigns a separate foreground and background color to each
+  Braille cell for the closest color approximation.
 
 Pipe or save the result as normal terminal text:
 

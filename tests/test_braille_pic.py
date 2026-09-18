@@ -117,6 +117,16 @@ class BraillePicCliTests(unittest.TestCase):
         output = self.render(image, "--background", "auto")
         self.assertTrue(output.startswith("\x1b[48;2;174;174;174m"))
 
+    def test_adaptive_colours_use_unlit_and_lit_dot_colours_per_character(self) -> None:
+        image = Image.new("RGB", (2, 4), color=(200, 180, 160))
+        for y in range(4):
+            image.putpixel((0, y), (0, 0, 0))
+
+        self.assertEqual(
+            self.render(image, "--adaptive-colours"),
+            "\x1b[48;2;200;180;160m\x1b[38;2;0;0;0m\u2847\x1b[0m\n",
+        )
+
     @staticmethod
     def contrast_ratio(first: tuple[int, int, int], second: tuple[int, int, int]) -> float:
         def luminance(color: tuple[int, int, int]) -> float:
