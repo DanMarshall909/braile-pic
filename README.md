@@ -5,6 +5,12 @@ character represents a 2 × 4 dot-matrix cell, so it holds eight source pixels.
 The output uses ANSI 24-bit foreground colours based on each cell's average RGB
 value.
 
+## Example
+
+An adaptive-colour Braille rendering of a portrait:
+
+![Adaptive colour Braille portrait](assets/profile-braille-preview.png)
+
 ## Requirements
 
 - Python 3.10+
@@ -14,6 +20,13 @@ value.
 
 ```bash
 python3 braille_pic.py photo.png --width 100
+```
+
+For portrait-style photos, this setting preserves local foreground and
+background colours per Braille cell:
+
+```bash
+python3 braille_pic.py portrait.jpg --width 100 --dither --contrast 1.25 --saturation 1.1 --adaptive-colours
 ```
 
 Useful options:
